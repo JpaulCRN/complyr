@@ -1,0 +1,225 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+vendor/
+
+# Go workspace file
+go.work
+
+# Build directories
+/build/
+/dist/
+/bin/
+/out/
+
+# Compiled binaries (specific to this project)
+complyr
+complyr-*
+!complyr/
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+# Assessment results and scan outputs
+assessment-results.json
+oscal-results.json
+oscal-enhanced-results.json
+*-assessment.json
+*-results.json
+*-scan.json
+*.assessment.json
+scan-output/
+results/
+
+# OSCAL cache files
+.oscal-cache.json
+oscal-cache/
+*.oscal-cache
+
+# Configuration files (local overrides)
+.complyr.local.yaml
+.complyr.*.yaml
+!.complyr.yaml
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Temporary files
+*.tmp
+*.temp
+.tmp/
+tmp/
+temp/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+*.env
+
+# Debug files
+debug
+debug.test
+*.pprof
+*.prof
+*.trace
+
+# Documentation (if you want to exclude CLAUDE.md from repo)
+# Uncomment the next line if you don't want CLAUDE.md in version control
+# CLAUDE.md
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.bak
+*.backup
+*.old
+*~
+
+# Test coverage
+coverage.txt
+coverage.html
+cover.out
+*.cover
+.coverage/
+
+# Dependency directories (if using vendoring)
+vendor/
+
+# Private keys and certificates
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# GitHub token files
+.github-token
+github-token.txt
+
+# VS Code specific
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Local history
+.history/
+.localhistory/
+
+# Python (if testing with Python projects)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv
+pip-log.txt
+
+# Node.js (if testing with Node projects)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+
+# Java (if testing with Java projects)
+*.class
+*.jar
+*.war
+*.ear
+target/
+
+# Rust (if testing with Rust projects)
+Cargo.lock
+target/
+
+# Archives
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.rar
+*.7z
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Cache directories
+.cache/
+cache/
+
+# Compliance reports (keep templates)
+compliance-report-*.html
+compliance-report-*.pdf
+!compliance-report-template.*
+
+# Development/testing files
+test-data/
+test-output/
+benchmarks/
+*.bench
+
+# macOS
+.AppleDouble
+.LSOverride
+Icon
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+.nfs*
