@@ -31,74 +31,60 @@ func runScan(cmd *cobra.Command, args []string) {
 
 	// Validate path exists
 	if _, err := os.Stat(path); os.IsNotExist(err) {
-		fmt.Printf("❌ Path does not exist: %s\n", path)
+		fmt.Fprintf(os.Stderr, "ERROR: Path does not exist: %s\n", path)
 		os.Exit(1)
 	}
 
-	output.PrintBanner()
-	fmt.Printf("🔍 Scanning %s for NIST RMF compliance...\n\n", path)
+	// Get flags early to determine output mode
+	jsonOutput, _ := cmd.Flags().GetBool("json")
+
+	// Send banner and progress to stderr for JSON mode, stdout otherwise
+	outputStream := os.Stdout
+	if jsonOutput {
+		outputStream = os.Stderr
+	}
+
+	output.PrintBannerTo(outputStream)
+	fmt.Fprintf(outputStream, "Scanning %s for NIST RMF compliance...\n\n", path)
 
 	// Perform the scan
 	result, err := scanners.PerformScan(path)
 	if err != nil {
-		fmt.Printf("❌ Error during scan: %v\n", err)
+		fmt.Fprintf(os.Stderr, "ERROR: Scan failed: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Get flags with error handling
-	jsonOutput, err := cmd.Flags().GetBool("json")
-	if err != nil {
-		// For root command, check persistent flags
-		jsonOutput, err = cmd.Root().PersistentFlags().GetBool("json")
-		if err != nil {
-			jsonOutput = false
-		}
-	}
-
-	verbose, err := cmd.Flags().GetBool("verbose")
-	if err != nil {
-		// For root command, check persistent flags
-		verbose, err = cmd.Root().PersistentFlags().GetBool("verbose")
-		if err != nil {
-			verbose = false
-		}
-	}
-
-	oscalFile, err := cmd.Flags().GetString("oscal")
-	if err != nil {
-		// For root command, check persistent flags
-		oscalFile, err = cmd.Root().PersistentFlags().GetString("oscal")
-		if err != nil {
-			oscalFile = ""
-		}
-	}
+	verbose, _ := cmd.Flags().GetBool("verbose")
+	oscalFile, _ := cmd.Flags().GetString("oscal")
 
 	// Export OSCAL document if requested
 	if oscalFile != "" {
 		oscalDoc, err := core.GenerateOSCALDocument(result)
 		if err != nil {
-			fmt.Printf("❌ Error generating OSCAL document: %v\n", err)
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to generate OSCAL document: %v\n", err)
 			os.Exit(1)
 		}
 
 		oscalJSON, err := core.ExportOSCALJSON(oscalDoc)
 		if err != nil {
-			fmt.Printf("❌ Error exporting OSCAL JSON: %v\n", err)
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to export OSCAL JSON: %v\n", err)
 			os.Exit(1)
 		}
 
 		if err := os.WriteFile(oscalFile, oscalJSON, 0644); err != nil {
-			fmt.Printf("❌ Error writing OSCAL file: %v\n", err)
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to write OSCAL file: %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("📄 OSCAL document exported to: %s\n", oscalFile)
+		// Notify about OSCAL file creation (to stderr for JSON mode)
+		fmt.Fprintf(outputStream, "OSCAL assessment-results written to %s (%d bytes)\n", oscalFile, len(oscalJSON))
 	}
 
 	// Display results
 	if jsonOutput {
+		// Pure JSON output to stdout
 		if err := output.DisplayJSON(result); err != nil {
-			fmt.Printf("❌ Error formatting JSON output: %v\n", err)
+			fmt.Fprintf(os.Stderr, "ERROR: Failed to format JSON output: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
@@ -114,17 +100,11 @@ func runScan(cmd *cobra.Command, args []string) {
 }
 
 func init() {
-	// Add scan as a subcommand
 	rootCmd.AddCommand(scanCmd)
 
-	// Add flags to both root and scan commands
-	// Persistent flags on root so they work with or without 'scan' subcommand
+	// Persistent flags on root so they work with or without the 'scan' subcommand
+	// and are inherited by scanCmd via cmd.Flags().
 	rootCmd.PersistentFlags().BoolP("json", "j", false, "Output results in JSON format")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "Enable verbose output")
 	rootCmd.PersistentFlags().String("oscal", "", "Export OSCAL document to specified file")
-
-	// Also add to scan command for better help text
-	scanCmd.Flags().BoolP("json", "j", false, "Output results in JSON format")
-	scanCmd.Flags().BoolP("verbose", "v", false, "Enable verbose output")
-	scanCmd.Flags().String("oscal", "", "Export OSCAL document to specified file")
 }

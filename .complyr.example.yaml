@@ -1,0 +1,4 @@
+project:
+  trl: 3                       # Technology Readiness Level (1-9). See README for guidance.
+  contract_type: "Internal"    # e.g. "Phase I SBIR", "Phase II SBIR", "Internal", "Commercial"
+  customer: ""                 # Optional. e.g. "Navy", "DISA", "Air Force". Leave empty if N/A.

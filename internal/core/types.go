@@ -21,14 +21,32 @@ type ProjectType struct {
 	Name        string
 	Language    string
 	ConfigFiles []string
+	IsMonorepo  bool
+	Subprojects []SubprojectInfo
+}
+
+// SubprojectInfo represents a subproject within a monorepo
+type SubprojectInfo struct {
+	Path     string
+	Name     string
+	Language string
+}
+
+// WorkspaceInfo represents detected workspace/monorepo configuration
+type WorkspaceInfo struct {
+	Type       string   // "turborepo", "npm-workspaces", "pnpm", "yarn", "cargo", "go-workspace"
+	Root       string
+	Packages   []string // Discovered package paths
+	ConfigFile string
 }
 
 // Dependency represents a project dependency
 type Dependency struct {
-	Name    string
-	Version string
-	File    string
-	Type    string //
+	Name       string
+	Version    string
+	File       string
+	Type       string
+	Subproject string // Relative path to subproject (empty for root)
 }
 
 // BannedTech represents a banned technology

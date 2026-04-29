@@ -6,9 +6,12 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
+
+const oscalCacheTTL = 7 * 24 * time.Hour
 
 // OSCALCatalog represents the official NIST 800-53 catalog structure
 type OSCALCatalog struct {
@@ -224,45 +227,19 @@ func MapOSCALToComplyr(oscalControl OSCALControlOfficial) Control {
 
 // EnhancedNISTControls loads official controls but filters to software-relevant ones
 func EnhancedNISTControls() (map[string]Control, error) {
-	// Try to load from cache first
-	cacheFile := ".oscal-cache.json"
-	var catalog *OSCALCatalog
-	var err error
-
-	// Check if cache exists and is recent (less than 7 days old)
-	if info, err := os.Stat(cacheFile); err == nil {
-		if time.Since(info.ModTime()) < 7*24*time.Hour {
-			catalog, err = LoadOSCALCatalogFromFile(cacheFile)
-			if err == nil {
-				goto ProcessCatalog
-			}
-		}
-	}
-
-	// Load from online source
-	catalog, err = LoadOSCALCatalog()
+	catalog, err := loadCatalogWithCache()
 	if err != nil {
-		// Fall back to embedded minimal set if online fetch fails
+		// Both cache and live NIST fetch failed — fall back to embedded baseline
 		return GetNISTControls(), nil
 	}
 
-	// Cache for future use
-	if data, err := json.Marshal(catalog); err == nil {
-		os.WriteFile(cacheFile, data, 0644)
-	}
-
-ProcessCatalog:
-	// Filter to software-relevant controls
 	softwareControls := FilterSoftwareControls(catalog)
-
-	// Convert to Complyr format
 	complyrControls := make(map[string]Control)
 	for id, oscalControl := range softwareControls {
-		complyrControl := MapOSCALToComplyr(oscalControl)
-		complyrControls[strings.ToUpper(id)] = complyrControl
+		complyrControls[strings.ToUpper(id)] = MapOSCALToComplyr(oscalControl)
 	}
 
-	// If we got fewer controls than our baseline, merge with defaults
+	// Merge with embedded baseline if the filtered catalog has fewer controls
 	if len(complyrControls) < len(GetNISTControls()) {
 		for id, control := range GetNISTControls() {
 			if _, exists := complyrControls[id]; !exists {
@@ -272,6 +249,49 @@ ProcessCatalog:
 	}
 
 	return complyrControls, nil
+}
+
+// catalogCachePath returns the OSCAL catalog cache file location.
+// Prefers the user cache dir so we don't litter the user's working directory
+// or break on read-only filesystems (e.g. CI containers).
+func catalogCachePath() string {
+	if dir, err := os.UserCacheDir(); err == nil {
+		complyrDir := filepath.Join(dir, "complyr")
+		if err := os.MkdirAll(complyrDir, 0o755); err == nil {
+			return filepath.Join(complyrDir, "oscal-catalog.json")
+		}
+	}
+	return ".oscal-cache.json"
+}
+
+// loadCatalogWithCache returns the NIST OSCAL catalog, preferring a fresh local
+// cache, then a live fetch, then a stale cache as a last resort.
+func loadCatalogWithCache() (*OSCALCatalog, error) {
+	cacheFile := catalogCachePath()
+
+	if info, err := os.Stat(cacheFile); err == nil && time.Since(info.ModTime()) < oscalCacheTTL {
+		if catalog, err := LoadOSCALCatalogFromFile(cacheFile); err == nil {
+			return catalog, nil
+		}
+	}
+
+	catalog, fetchErr := LoadOSCALCatalog()
+	if fetchErr != nil {
+		// Live fetch failed — try a stale cache if one exists
+		if cached, cacheErr := LoadOSCALCatalogFromFile(cacheFile); cacheErr == nil {
+			fmt.Fprintf(os.Stderr, "⚠️  Using stale OSCAL cache (live fetch failed: %v)\n", fetchErr)
+			return cached, nil
+		}
+		return nil, fetchErr
+	}
+
+	if data, err := json.Marshal(catalog); err == nil {
+		if err := os.WriteFile(cacheFile, data, 0o644); err != nil {
+			fmt.Fprintf(os.Stderr, "⚠️  Could not write OSCAL cache to %s: %v\n", cacheFile, err)
+		}
+	}
+
+	return catalog, nil
 }
 
 // GetSoftwareBaseline returns appropriate controls based on system impact level

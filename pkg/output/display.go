@@ -3,15 +3,22 @@ package output
 import (
 	"encoding/json"
 	"fmt"
+	"io"
+	"os"
 	"strings"
 
 	"github.com/JpaulCRN/complyr/internal/core"
 )
 
-// PrintBanner displays the complyr banner
+// PrintBanner displays the complyr banner to stdout
 func PrintBanner() {
+	PrintBannerTo(os.Stdout)
+}
+
+// PrintBannerTo displays the complyr banner to specified writer
+func PrintBannerTo(w io.Writer) {
 	banner := `
- ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗  ██╗   ██╗██████╗ 
+ ██████╗ ██████╗ ███╗   ███╗██████╗ ██╗  ██╗   ██╗██████╗
 ██╔════╝██╔═══██╗████╗ ████║██╔══██╗██║  ╚██╗ ██╔╝██╔══██╗
 ██║     ██║   ██║██╔████╔██║██████╔╝██║   ╚████╔╝ ██████╔╝
 ██║     ██║   ██║██║╚██╔╝██║██╔═══╝ ██║    ╚██╔╝  ██╔══██╗
@@ -20,7 +27,7 @@ func PrintBanner() {
                     by Colvin Run
                     NIST RMF Compliance Scanner
 `
-	fmt.Println(banner)
+	fmt.Fprintln(w, banner)
 }
 
 // DisplayResults shows scan results in human-readable format
@@ -57,7 +64,21 @@ func DisplayJSON(result *core.ScanResult) error {
 }
 
 func displayHeader(result *core.ScanResult) {
-	fmt.Printf("📁 Project: %s (%s)", result.ProjectType.Name, result.ProjectType.Language)
+	// Check if this is a monorepo
+	if result.ProjectType.IsMonorepo {
+		fmt.Printf("PROJECT: %s\n", result.ProjectType.Name)
+		fmt.Printf("  Languages: %s\n", result.ProjectType.Language)
+
+		// Show subprojects
+		if len(result.ProjectType.Subprojects) > 0 {
+			fmt.Printf("  Subprojects: %d\n", len(result.ProjectType.Subprojects))
+			for _, sub := range result.ProjectType.Subprojects {
+				fmt.Printf("  - %s (%s)\n", sub.Path, sub.Language)
+			}
+		}
+	} else {
+		fmt.Printf("PROJECT: %s (%s)", result.ProjectType.Name, result.ProjectType.Language)
+	}
 
 	// Add TRL context if available
 	if result.ProjectContext.TRL > 0 {
@@ -68,20 +89,48 @@ func displayHeader(result *core.ScanResult) {
 	}
 	fmt.Println()
 
-	fmt.Printf("📍 Path: %s\n", result.ProjectPath)
-	fmt.Printf("📦 Dependencies analyzed: %d\n", len(result.Dependencies))
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Printf("PATH: %s\n", result.ProjectPath)
+	fmt.Printf("DEPENDENCIES: %d\n", len(result.Dependencies))
+
+	// Show dependency breakdown by subproject for monorepos
+	if result.ProjectType.IsMonorepo {
+		displayDependencyBreakdown(result.Dependencies)
+	}
+
+	fmt.Println(strings.Repeat("-", 70))
+}
+
+// displayDependencyBreakdown shows dependencies grouped by subproject
+func displayDependencyBreakdown(dependencies []core.Dependency) {
+	// Group dependencies by subproject
+	bySubproject := make(map[string]int)
+	for _, dep := range dependencies {
+		key := dep.Subproject
+		if key == "" {
+			key = "(root)"
+		}
+		bySubproject[key]++
+	}
+
+	if len(bySubproject) > 1 {
+		fmt.Println("  Dependencies by location:")
+		for subproject, count := range bySubproject {
+			fmt.Printf("  - %s: %d\n", subproject, count)
+		}
+	}
 }
 
 func displayTRLSummary(result *core.ScanResult) {
-	fmt.Println("\n📊 COMPLIANCE STATUS")
-	fmt.Printf("   Stage: TRL %d - %s\n",
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("COMPLIANCE STATUS")
+	fmt.Println(strings.Repeat("=", 70))
+	fmt.Printf("Stage: TRL %d - %s\n",
 		result.ProjectContext.TRL,
 		core.TRLDescriptions[result.ProjectContext.TRL])
 
 	// Show controls for current TRL only
 	requiredCount := len(result.TRLAssessment.RequiredControls)
-	fmt.Printf("   Required Controls: %d of %d satisfied\n",
+	fmt.Printf("Required Controls: %d of %d satisfied\n",
 		result.Summary.SatisfiedControls,
 		requiredCount)
 
@@ -97,14 +146,14 @@ func displayTRLSummary(result *core.ScanResult) {
 		color = "\033[31m" // Red
 	}
 
-	fmt.Printf("   🎯 Current TRL Compliance: %s%.1f%%\033[0m\n", color, readiness)
+	fmt.Printf("Current TRL Compliance: %s%.1f%%\033[0m\n", color, readiness)
 
 	// Show progress bar
 	printProgressBar(readiness)
 
 	// Show next TRL readiness if applicable
 	if result.ProjectContext.TRL < 9 && result.TRLAssessment.NextTRLReadiness > 0 {
-		fmt.Printf("   📈 Progress to TRL %d: %.1f%%\n",
+		fmt.Printf("Progress to TRL %d: %.1f%%\n",
 			result.ProjectContext.TRL+1,
 			result.TRLAssessment.NextTRLReadiness)
 	}
@@ -112,14 +161,16 @@ func displayTRLSummary(result *core.ScanResult) {
 	// Show issues if any
 	displayIssuesSummary(result.Summary)
 
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Println(strings.Repeat("=", 70))
 }
 
 func displaySummary(result *core.ScanResult) {
 	summary := result.Summary
-	fmt.Println("\n📋 COMPLIANCE SUMMARY")
-	fmt.Printf("   Controls Assessed: %d\n", summary.TotalControls)
-	fmt.Printf("   Satisfied Controls: %d\n", summary.SatisfiedControls)
+	fmt.Println("\n" + strings.Repeat("=", 70))
+	fmt.Println("COMPLIANCE SUMMARY")
+	fmt.Println(strings.Repeat("=", 70))
+	fmt.Printf("Controls Assessed: %d\n", summary.TotalControls)
+	fmt.Printf("Satisfied Controls: %d\n", summary.SatisfiedControls)
 
 	// Color-coded ATO readiness
 	readiness := summary.ATOReadiness
@@ -133,33 +184,33 @@ func displaySummary(result *core.ScanResult) {
 		color = "\033[31m" // Red
 	}
 
-	fmt.Printf("   🎯 ATO Readiness: %s%.1f%%\033[0m\n", color, readiness)
+	fmt.Printf("ATO Readiness: %s%.1f%%\033[0m\n", color, readiness)
 
 	displayIssuesSummary(summary)
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Println(strings.Repeat("=", 70))
 }
 
 func displayIssuesSummary(summary core.ScanSummary) {
 	totalIssues := summary.CriticalIssues + summary.HighIssues + summary.MediumIssues + summary.LowIssues
 	if totalIssues > 0 {
-		fmt.Println("\n🚨 ISSUES FOUND")
+		fmt.Println("\nISSUES FOUND:")
 		if summary.CriticalIssues > 0 {
-			fmt.Printf("   🔴 Critical: %d\n", summary.CriticalIssues)
+			fmt.Printf("  [CRITICAL] %d\n", summary.CriticalIssues)
 		}
 		if summary.HighIssues > 0 {
-			fmt.Printf("   🟠 High: %d\n", summary.HighIssues)
+			fmt.Printf("  [HIGH]     %d\n", summary.HighIssues)
 		}
 		if summary.MediumIssues > 0 {
-			fmt.Printf("   🟡 Medium: %d\n", summary.MediumIssues)
+			fmt.Printf("  [MEDIUM]   %d\n", summary.MediumIssues)
 		}
 		if summary.LowIssues > 0 {
-			fmt.Printf("   🟢 Low: %d\n", summary.LowIssues)
+			fmt.Printf("  [LOW]      %d\n", summary.LowIssues)
 		}
 	}
 }
 
 func printProgressBar(percentage float64) {
-	barWidth := 30
+	barWidth := 50
 	filled := int(percentage / 100 * float64(barWidth))
 	if filled > barWidth {
 		filled = barWidth
@@ -167,42 +218,128 @@ func printProgressBar(percentage float64) {
 	if filled < 0 {
 		filled = 0
 	}
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled)
-	fmt.Printf("   [%s]\n", bar)
+	bar := strings.Repeat("=", filled) + strings.Repeat("-", barWidth-filled)
+	fmt.Printf("[%s]\n", bar)
 }
 
 func displayFindings(result *core.ScanResult, verbose bool) {
+	// For monorepos, group findings by subproject
+	if result.ProjectType.IsMonorepo && verbose {
+		displayMonorepoFindings(result)
+		return
+	}
+
 	// Display banned technologies
 	if len(result.BannedTechFound) > 0 {
-		fmt.Printf("\n🚫 BANNED TECHNOLOGIES (%d found)\n", len(result.BannedTechFound))
+		fmt.Printf("\nBANNED TECHNOLOGIES (%d found):\n", len(result.BannedTechFound))
 		for _, banned := range result.BannedTechFound {
-			severityIcon := getSeverityIcon(banned.Severity)
-			fmt.Printf("   %s %s@%s\n", severityIcon, banned.Name, banned.Version)
+			severityLabel := getSeverityLabel(banned.Severity)
+			fmt.Printf("  [%s] %s@%s\n", severityLabel, banned.Name, banned.Version)
 			if verbose {
-				fmt.Printf("      📄 File: %s\n", banned.File)
-				fmt.Printf("      📝 Reason: %s\n", banned.Reason)
+				fmt.Printf("    File: %s\n", banned.File)
+				fmt.Printf("    Reason: %s\n", banned.Reason)
 			}
 		}
 	} else {
-		fmt.Println("\n✅ No banned technologies found")
+		fmt.Println("\n[PASS] No banned technologies found")
 	}
 
 	// Display CVEs
 	if len(result.CVEsFound) > 0 {
-		fmt.Printf("\n🔍 VULNERABILITIES (%d found)\n", len(result.CVEsFound))
+		fmt.Printf("\nVULNERABILITIES (%d found):\n", len(result.CVEsFound))
 		for _, cve := range result.CVEsFound {
-			severityIcon := getSeverityIcon(cve.Severity)
-			fmt.Printf("   %s %s in %s@%s\n", severityIcon, cve.CVE, cve.Package, cve.Version)
+			severityLabel := getSeverityLabel(cve.Severity)
+			fmt.Printf("  [%s] %s in %s@%s\n", severityLabel, cve.CVE, cve.Package, cve.Version)
 			if verbose && cve.Description != "" {
-				fmt.Printf("      📝 %s\n", cve.Description)
+				fmt.Printf("    Description: %s\n", cve.Description)
 			}
 			if verbose && cve.Score > 0 {
-				fmt.Printf("      📊 CVSS Score: %.1f\n", cve.Score)
+				fmt.Printf("    CVSS Score: %.1f\n", cve.Score)
 			}
 		}
 	} else {
-		fmt.Println("\n✅ No known vulnerabilities found")
+		fmt.Println("\n[PASS] No known vulnerabilities found")
 	}
+}
+
+// displayMonorepoFindings shows findings grouped by subproject
+func displayMonorepoFindings(result *core.ScanResult) {
+	// Group banned tech by subproject (using the dependency's subproject)
+	bannedBySubproject := make(map[string][]core.BannedTech)
+	for _, banned := range result.BannedTechFound {
+		// Find which subproject this dependency belongs to
+		subproject := findDependencySubproject(result.Dependencies, banned.Name)
+		bannedBySubproject[subproject] = append(bannedBySubproject[subproject], banned)
+	}
+
+	// Group CVEs by subproject
+	cvesBySubproject := make(map[string][]core.CVE)
+	for _, cve := range result.CVEsFound {
+		subproject := findDependencySubproject(result.Dependencies, cve.Package)
+		cvesBySubproject[subproject] = append(cvesBySubproject[subproject], cve)
+	}
+
+	// Collect all subprojects with findings
+	allSubprojects := make(map[string]bool)
+	for sub := range bannedBySubproject {
+		allSubprojects[sub] = true
+	}
+	for sub := range cvesBySubproject {
+		allSubprojects[sub] = true
+	}
+
+	if len(allSubprojects) == 0 {
+		fmt.Println("\n[PASS] No banned technologies found")
+		fmt.Println("\n[PASS] No known vulnerabilities found")
+		return
+	}
+
+	// Display findings by subproject
+	for subproject := range allSubprojects {
+		displayName := subproject
+		if displayName == "" {
+			displayName = "(root)"
+		}
+		fmt.Printf("\nSUBPROJECT: %s\n", displayName)
+
+		// Banned tech for this subproject
+		if banned, ok := bannedBySubproject[subproject]; ok && len(banned) > 0 {
+			fmt.Printf("  Banned Technologies: %d\n", len(banned))
+			for _, b := range banned {
+				severityLabel := getSeverityLabel(b.Severity)
+				fmt.Printf("    [%s] %s@%s - %s\n", severityLabel, b.Name, b.Version, b.Reason)
+			}
+		}
+
+		// CVEs for this subproject
+		if cves, ok := cvesBySubproject[subproject]; ok && len(cves) > 0 {
+			fmt.Printf("  Vulnerabilities: %d\n", len(cves))
+			for _, cve := range cves {
+				severityLabel := getSeverityLabel(cve.Severity)
+				fmt.Printf("    [%s] %s in %s@%s\n", severityLabel, cve.CVE, cve.Package, cve.Version)
+			}
+		}
+	}
+
+	// Summary
+	totalBanned := len(result.BannedTechFound)
+	totalCVEs := len(result.CVEsFound)
+	if totalBanned == 0 {
+		fmt.Println("\n[PASS] No banned technologies found")
+	}
+	if totalCVEs == 0 {
+		fmt.Println("\n[PASS] No known vulnerabilities found")
+	}
+}
+
+// findDependencySubproject finds which subproject a dependency belongs to
+func findDependencySubproject(dependencies []core.Dependency, packageName string) string {
+	for _, dep := range dependencies {
+		if dep.Name == packageName {
+			return dep.Subproject
+		}
+	}
+	return ""
 }
 
 func displayTRLControls(result *core.ScanResult, verbose bool) {
@@ -224,7 +361,7 @@ func displayTRLControls(result *core.ScanResult, verbose bool) {
 
 	// Display required controls for current TRL
 	if len(requiredControls) > 0 {
-		fmt.Printf("\n📋 TRL %d REQUIREMENTS (%d controls)\n",
+		fmt.Printf("\nTRL %d REQUIREMENTS (%d controls):\n",
 			result.ProjectContext.TRL, len(requiredControls))
 
 		// Group by status
@@ -237,29 +374,66 @@ func displayTRLControls(result *core.ScanResult, verbose bool) {
 		displayControlsByStatus(statusGroups, verbose)
 	}
 
-	// Display optional controls (preparing for next TRL)
+	// Display controls needed for next TRL (IMPROVED - showing only what's needed)
 	if len(optionalControls) > 0 && result.ProjectContext.TRL < 9 {
-		fmt.Printf("\n📈 PREPARING FOR TRL %d\n", result.ProjectContext.TRL+1)
-		fmt.Println("   When ready to advance, you'll need:")
-
-		for _, control := range optionalControls {
-			status := ""
-			if control.Status == core.StatusSatisfied {
-				status = " ✅"
-			}
-			fmt.Printf("   • %s: %s%s\n", control.ControlID, control.Title, status)
-
-			if verbose && control.Status != core.StatusSatisfied {
-				fmt.Printf("      💡 Quick fix: %s\n", getQuickFix(control))
-			}
-		}
+		displayNextTRLPreparation(result, optionalControls, verbose)
 	}
 
 	// Show deferred controls briefly
 	if len(result.TRLAssessment.DeferredControls) > 0 && verbose {
-		fmt.Printf("\n🔮 FUTURE REQUIREMENTS (TRL 7+)\n")
-		fmt.Printf("   Controls not needed until operational testing: %s\n",
+		fmt.Printf("\nFUTURE REQUIREMENTS (TRL 7+):\n")
+		fmt.Printf("  Controls not needed until operational testing: %s\n",
 			strings.Join(result.TRLAssessment.DeferredControls, ", "))
+	}
+}
+
+// displayNextTRLPreparation shows what's needed for the next TRL level
+func displayNextTRLPreparation(result *core.ScanResult, optionalControls []core.ControlResult, verbose bool) {
+	nextTRL := result.ProjectContext.TRL + 1
+
+	// Get the control set for next TRL
+	nextTRLSet := core.GetTRLControls(nextTRL)
+	nextTRLRequired := make(map[string]bool)
+	for _, controlID := range nextTRLSet.Required {
+		nextTRLRequired[controlID] = true
+	}
+
+	// Filter optional controls to only those required for next TRL
+	var neededForNextTRL []core.ControlResult
+	var alreadySatisfiedForNextTRL []core.ControlResult
+
+	for _, control := range optionalControls {
+		if nextTRLRequired[control.ControlID] {
+			if control.Status == core.StatusSatisfied {
+				alreadySatisfiedForNextTRL = append(alreadySatisfiedForNextTRL, control)
+			} else {
+				neededForNextTRL = append(neededForNextTRL, control)
+			}
+		}
+	}
+
+	totalNeeded := len(neededForNextTRL) + len(alreadySatisfiedForNextTRL)
+	if totalNeeded == 0 {
+		return
+	}
+
+	fmt.Printf("\nPREPARING FOR TRL %d (%d additional controls required):\n", nextTRL, totalNeeded)
+
+	if len(neededForNextTRL) > 0 {
+		fmt.Printf("\n  NEEDS IMPLEMENTATION (%d controls):\n", len(neededForNextTRL))
+		for _, control := range neededForNextTRL {
+			fmt.Printf("  - %s: %s\n", control.ControlID, control.Title)
+			if verbose {
+				fmt.Printf("      Status: %s\n", control.Evidence)
+			}
+		}
+	}
+
+	if len(alreadySatisfiedForNextTRL) > 0 {
+		fmt.Printf("\n  ALREADY SATISFIED (%d controls):\n", len(alreadySatisfiedForNextTRL))
+		for _, control := range alreadySatisfiedForNextTRL {
+			fmt.Printf("  [PASS] %s: %s\n", control.ControlID, control.Title)
+		}
 	}
 }
 
@@ -268,7 +442,7 @@ func displayControls(controls []core.ControlResult, verbose bool) {
 		return
 	}
 
-	fmt.Printf("\n📋 CONTROL ASSESSMENT (%d controls)\n", len(controls))
+	fmt.Printf("\nCONTROL ASSESSMENT (%d controls):\n", len(controls))
 
 	// Group by status
 	statusGroups := make(map[string][]core.ControlResult)
@@ -290,20 +464,16 @@ func displayControlsByStatus(statusGroups map[string][]core.ControlResult, verbo
 
 	for _, status := range statusOrder {
 		if controls, exists := statusGroups[status]; exists && len(controls) > 0 {
-			fmt.Printf("\n   %s (%d controls)\n", getStatusDisplay(status), len(controls))
+			fmt.Printf("\n  %s (%d controls):\n", getStatusDisplay(status), len(controls))
 
 			for _, control := range controls {
-				icon := getStatusIcon(control.Status)
-				fmt.Printf("   %s %s: %s\n", icon, control.ControlID, control.Title)
+				label := getStatusLabel(control.Status)
+				fmt.Printf("  [%s] %s: %s\n", label, control.ControlID, control.Title)
 
 				if verbose || status == core.StatusNotSatisfied {
-					fmt.Printf("      📝 %s\n", control.Evidence)
+					fmt.Printf("      %s\n", control.Evidence)
 					if control.Findings > 0 {
-						fmt.Printf("      🔍 Findings: %d\n", control.Findings)
-					}
-					// Add quick fix suggestions for unsatisfied controls
-					if status == core.StatusNotSatisfied {
-						fmt.Printf("      💡 Quick fix: %s\n", getQuickFix(control))
+						fmt.Printf("      Findings: %d\n", control.Findings)
 					}
 				}
 			}
@@ -311,57 +481,38 @@ func displayControlsByStatus(statusGroups map[string][]core.ControlResult, verbo
 	}
 }
 
-func getQuickFix(control core.ControlResult) string {
-	// Provide quick fix suggestions based on control family
-	switch control.Family {
-	case "AU":
-		return "npm install winston or pino for logging"
-	case "AC", "IA":
-		return "npm install passport or @fastify/jwt for authentication"
-	case "SC":
-		return "npm install bcrypt for cryptography"
-	case "SI":
-		if control.ControlID == "SI-4" {
-			return "npm install @sentry/node for monitoring"
-		}
-		return "Enable automated scanning in CI/CD"
-	default:
-		return "Review control requirements and implement appropriate measures"
-	}
-}
-
 func displayTRLConclusion(result *core.ScanResult) {
-	fmt.Println(strings.Repeat("─", 50))
+	fmt.Println("\n" + strings.Repeat("=", 70))
 
 	// TRL-specific conclusion
 	if result.ProjectContext.TRL > 0 {
 		compliance := result.TRLAssessment.TRLCompliance
 
 		if compliance >= 100 {
-			fmt.Printf("\n🎉 EXCELLENT: All TRL %d requirements satisfied!\n",
+			fmt.Printf("RESULT: All TRL %d requirements satisfied\n",
 				result.ProjectContext.TRL)
 			if result.ProjectContext.TRL < 9 {
-				fmt.Printf("   You're ready to advance to TRL %d when the project is ready.\n",
+				fmt.Printf("NEXT STEPS: Review requirements for TRL %d advancement\n",
 					result.ProjectContext.TRL+1)
 			} else {
-				fmt.Println("   Your system is production-ready from a compliance perspective!")
+				fmt.Println("STATUS: Production-ready from compliance perspective")
 			}
 		} else if compliance >= 80 {
-			fmt.Printf("\n👍 GOOD PROGRESS: You're %.0f%% compliant with TRL %d requirements.\n",
+			fmt.Printf("RESULT: %.0f%% compliant with TRL %d requirements\n",
 				compliance, result.ProjectContext.TRL)
-			fmt.Println("   Address the remaining controls to achieve full compliance.")
+			fmt.Println("NEXT STEPS: Address remaining controls for full compliance")
 		} else {
-			fmt.Printf("\n📋 FOCUS NEEDED: Currently %.0f%% compliant with TRL %d requirements.\n",
+			fmt.Printf("RESULT: %.0f%% compliant with TRL %d requirements\n",
 				compliance, result.ProjectContext.TRL)
-			fmt.Println("   Prioritize satisfying the required controls for your current stage.")
+			fmt.Println("NEXT STEPS: Prioritize required controls for current stage")
 		}
 
 		// Show appropriate next steps
 		if result.Summary.CriticalIssues > 0 || result.Summary.HighIssues > 0 {
-			fmt.Println("\n⚠️  Address critical and high severity issues immediately.")
+			fmt.Println("\nWARNING: Address critical and high severity issues immediately")
 		}
 
-		fmt.Printf("\n📊 TRL %d Compliance: %.1f%%\n",
+		fmt.Printf("\nTRL %d Compliance: %.1f%%\n",
 			result.ProjectContext.TRL, compliance)
 
 	} else {
@@ -369,68 +520,69 @@ func displayTRLConclusion(result *core.ScanResult) {
 		displayConclusion(result)
 	}
 
-	fmt.Println("💡 Run 'complyr init' to configure TRL-based assessment")
-	fmt.Println("🔗 For detailed remediation guidance, run with --verbose flag")
+	fmt.Println("\nFor TRL-based assessment: complyr init")
+	fmt.Println("For detailed findings: complyr scan --verbose")
+	fmt.Println(strings.Repeat("=", 70))
 }
 
 func displayConclusion(result *core.ScanResult) {
 	readiness := result.Summary.ATOReadiness
 
 	if readiness >= 80 {
-		fmt.Println("\n🎉 EXCELLENT: Your project is well-positioned for ATO!")
-		fmt.Println("   Consider conducting final manual reviews for remaining controls.")
+		fmt.Println("RESULT: Project well-positioned for ATO")
+		fmt.Println("NEXT STEPS: Conduct final manual reviews for remaining controls")
 	} else if readiness >= 60 {
-		fmt.Println("\n⚠️  MODERATE: Some issues need attention before ATO.")
-		fmt.Println("   Address critical and high-severity findings first.")
+		fmt.Println("WARNING: Some issues need attention before ATO")
+		fmt.Println("NEXT STEPS: Address critical and high-severity findings first")
 	} else {
-		fmt.Println("\n🚨 ATTENTION REQUIRED: Significant compliance gaps detected.")
-		fmt.Println("   Resolve critical issues before proceeding with ATO process.")
+		fmt.Println("ATTENTION: Significant compliance gaps detected")
+		fmt.Println("NEXT STEPS: Resolve critical issues before ATO process")
 	}
 
-	fmt.Printf("\n📊 Overall ATO Readiness: %.1f%%\n", readiness)
+	fmt.Printf("\nOverall ATO Readiness: %.1f%%\n", readiness)
 }
 
-func getSeverityIcon(severity string) string {
+func getSeverityLabel(severity string) string {
 	switch severity {
 	case core.SeverityCritical:
-		return "🔴"
+		return "CRITICAL"
 	case core.SeverityHigh:
-		return "🟠"
+		return "HIGH"
 	case core.SeverityMedium:
-		return "🟡"
+		return "MEDIUM"
 	case core.SeverityLow:
-		return "🟢"
+		return "LOW"
 	default:
-		return "⚪"
+		return "UNKNOWN"
 	}
 }
 
-func getStatusIcon(status string) string {
+func getStatusLabel(status string) string {
 	switch status {
 	case core.StatusSatisfied:
-		return "✅"
+		return "PASS"
 	case core.StatusNotSatisfied:
-		return "❌"
+		return "FAIL"
 	case core.StatusManualReview:
-		return "📋"
+		return "REVIEW"
 	case core.StatusNotApplicable:
-		return "⚪"
+		return "N/A"
 	default:
-		return "❓"
+		return "UNKNOWN"
 	}
 }
 
 func getStatusDisplay(status string) string {
 	switch status {
 	case core.StatusSatisfied:
-		return "✅ SATISFIED"
+		return "SATISFIED"
 	case core.StatusNotSatisfied:
-		return "❌ NOT SATISFIED"
+		return "NOT SATISFIED"
 	case core.StatusManualReview:
-		return "📋 MANUAL REVIEW REQUIRED"
+		return "MANUAL REVIEW REQUIRED"
 	case core.StatusNotApplicable:
-		return "⚪ NOT APPLICABLE"
+		return "NOT APPLICABLE"
 	default:
-		return "❓ UNKNOWN"
+		return "UNKNOWN"
 	}
 }

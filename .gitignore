@@ -29,6 +29,7 @@ complyr-*
 # IDE and editor files
 .vscode/
 .idea/
+.claude/
 *.swp
 *.swo
 *~
@@ -53,10 +54,11 @@ results/
 oscal-cache/
 *.oscal-cache
 
-# Configuration files (local overrides)
+# Configuration files (per-user, never commit — copy .complyr.example.yaml to start)
 .complyr.local.yaml
 .complyr.*.yaml
-!.complyr.yaml
+.complyr.yaml
+!.complyr.example.yaml
 
 # Log files
 *.log
@@ -85,7 +87,7 @@ debug.test
 
 # Documentation (if you want to exclude CLAUDE.md from repo)
 # Uncomment the next line if you don't want CLAUDE.md in version control
-# CLAUDE.md
+CLAUDE.md
 
 # OS generated files
 .DS_Store

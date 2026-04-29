@@ -36,7 +36,8 @@ func init() {
 
 func runInit(path string) error {
 	fmt.Println("\n🚀 Complyr Project Setup")
-	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+	fmt.Println()
 
 	// Check if config already exists
 	configPath := filepath.Join(path, ".complyr.yaml")

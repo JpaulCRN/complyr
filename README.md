@@ -8,7 +8,7 @@
 </p>
 
 <p align="center">
-  <strong>🔒 Automated NIST 800-53 compliance scanning for modern software projects</strong>
+  <strong>🔒 Colvin Run's internal NIST 800-53 / RMF compliance scanner</strong>
 </p>
 
 <p align="center">
@@ -29,33 +29,39 @@
 - **🔄 CVE Vulnerability Scanning**: Real-time checks against GitHub Security Advisory Database
 - **💪 Robust Error Recovery**: Continues operation with warnings instead of failing completely
 
-## 📦 Installation
+## 📦 Install
 
-### Pre-built Binaries
-
-Download the latest release for your platform:
+Requires Go 1.21+.
 
 ```bash
-# macOS/Linux
-curl -L https://github.com/yourusername/complyr/releases/latest/download/complyr-$(uname -s)-$(uname -m) -o complyr
-chmod +x complyr
-sudo mv complyr /usr/local/bin/
-
-# Windows (PowerShell)
-Invoke-WebRequest -Uri https://github.com/yourusername/complyr/releases/latest/download/complyr.exe -OutFile complyr.exe
+go install github.com/JpaulCRN/complyr@latest
 ```
 
-### Build from Source
+This drops the `complyr` binary into `$GOBIN` (default `~/go/bin`). Make sure that directory is on your `PATH`:
 
 ```bash
-# Requires Go 1.21+
-git clone https://github.com/yourusername/complyr.git
+# macOS / Linux (bash/zsh)
+export PATH="$PATH:$(go env GOPATH)/bin"
+```
+
+```powershell
+# Windows (PowerShell, persistent)
+[Environment]::SetEnvironmentVariable("Path",
+  "$env:Path;$(go env GOPATH)\bin", "User")
+```
+
+Verify the install:
+
+```bash
+complyr --version
+```
+
+### Build from source
+
+```bash
+git clone https://github.com/JpaulCRN/complyr.git
 cd complyr
 go build -o complyr
-
-# Install globally
-sudo mv complyr /usr/local/bin/  # macOS/Linux
-# or add to PATH on Windows
 ```
 
 ## 🎯 Quick Start
@@ -193,11 +199,10 @@ project:
 ### Environment Variables
 
 ```bash
-# GitHub token for increased API rate limits
+# GitHub token for increased API rate limits (used for both OSCAL catalog
+# downloads from usnistgov/oscal-content and CVE lookups against
+# api.github.com/advisories)
 export GITHUB_TOKEN=ghp_xxxxxxxxxxxx
-
-# Custom OSCAL catalog location (optional)
-export OSCAL_CATALOG_URL=https://your-oscal-catalog.json
 ```
 
 ## 📈 Example Output
@@ -263,7 +268,7 @@ jobs:
 
       - name: Install Complyr
         run: |
-          curl -L https://github.com/yourusername/complyr/releases/latest/download/complyr-linux-amd64 -o complyr
+          curl -L https://github.com/JpaulCRN/complyr/releases/latest/download/complyr-linux-amd64 -o complyr
           chmod +x complyr
 
       - name: Run Compliance Scan
@@ -290,7 +295,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/complyr.git
+git clone https://github.com/JpaulCRN/complyr.git
 cd complyr
 
 # Install dependencies
@@ -335,8 +340,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 📧 Support
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/complyr/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/complyr/discussions)
+- **Issues**: [GitHub Issues](https://github.com/JpaulCRN/complyr/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/JpaulCRN/complyr/discussions)
 - **Email**: support@colvinrun.com
 
 ## 🗺️ Roadmap
